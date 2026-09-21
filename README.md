@@ -2,15 +2,15 @@
 
 A full-stack app around your existing AI Video Assistant / Video RAG pipeline:
 React frontend + a thin FastAPI layer that calls your existing backend
-functions (`process_input`, `transcribe_all`, `summarize`, `generate_title`,
+functions (`transcribe_all`, `summarize`, `generate_title`,
 `extract_action_items`, `extract_key_decisions`, `extract_questions`,
-`build_rag_chain`, `ask_question`) unchanged.
-
+`build_rag_chain`, `ask_question`) preserved, while `process_input()` now
+accepts local audio/video files only.
 ```
 Video-Project-Rag/
 ├── backend/
 │   ├── api/
-│   │   ├── routes.py        # GET /api/health, POST /api/process, /api/process-upload, /api/chat
+│   │   ├── routes.py        # GET /api/health, POST /api/process-upload, /api/chat
 │   │   ├── schemas.py        # Pydantic request/response models
 │   │   └── session_store.py  # in-memory session_id -> rag_chain map
 │   ├── core/                 # UNCHANGED except two additive optional params (see "What was changed")
@@ -20,12 +20,12 @@ Video-Project-Rag/
 │   │   ├── transcriber.py
 │   │   └── vector_store.py
 │   ├── utils/
-│   │   └── audio_processor.py   # unchanged
-│   ├── downloads/                # yt-dlp / converted audio (temporary, gitignored)
+│   │   └── audio_processor.py   # local audio/video processing
+│   ├── downloads/                # temporary audio files (gitignored)
 │   ├── vector_db/                 # Chroma persistence (gitignored)
 │   ├── main.py                # your existing pipeline + CLI, unchanged except one optional kwarg
 │   ├── app.py                 # NEW — FastAPI app, CORS, includes api/routes.py
-│   ├── requirements.txt       # unchanged (already had fastapi/uvicorn/python-multipart)
+│   ├── requirements.txt       # FastAPI/uvicorn/python-multipart and audio processing dependencies
 │   ├── Dockerfile
 │   └── .env.example
 ├── frontend/
@@ -53,21 +53,22 @@ Video-Project-Rag/
    collection name so sessions stay isolated.
 2. **`main.py`** — `run_pipeline()` gained one optional kwarg,
    `session_id=None`, forwarded to `build_rag_chain`. The CLI entry point
-   (`python main.py`) never passes it, so CLI behavior is byte-for-byte
-   identical to before. This was necessary because `run_pipeline` is the one
+    (`python main.py`) never passes it, so the existing CLI pipeline behavior
+    remains unchanged apart from the local-file-only input change. This was necessary because `run_pipeline` is the one
    function both the CLI and the API call.
 
 No function was renamed, removed, or reimplemented. `rag_chain` never leaves
-the backend — `/api/process` returns a `session_id`; `/api/chat` looks up the
+the backend — `/api/process-upload` returns a `session_id`; `/api/chat` looks up the
 in-memory session and calls your existing `ask_question(rag_chain, question)`.
 
 **Known quirk carried over from your original code (not changed):**
+
 `audio_processor.py` and `vector_store.py` hardcode `./backend/downloads` and
 `./backend/vector_db`. Since imports (`from core...`, `from utils...`) require
 Python to run with `backend/` as the working directory, these paths resolve
 to a nested `backend/backend/downloads` and `backend/backend/vector_db` at
 runtime. This is harmless (the folders are created automatically) but worth
-knowing if you go looking for downloaded audio files.
+knowing if you go looking for temporary audio files.
 
 **Session storage limitation (MVP, by design):** sessions live in a
 process-local Python dict. Restarting/redeploying the backend, or running
@@ -96,8 +97,8 @@ cp .env.example .env
 uvicorn app:app --reload --port 8000
 ```
 
-FFmpeg must be installed on your system separately (required by `yt-dlp` and
-`pydub`) — e.g. `brew install ffmpeg` on macOS, `apt install ffmpeg` on
+FFmpeg must be installed on your system separately (required by `pydub`
+for audio/video conversion) — e.g. `brew install ffmpeg` on macOS, `apt install ffmpeg` on
 Debian/Ubuntu, or use the provided Dockerfile which installs it for you.
 
 Confirm it's running: open `http://localhost:8000/api/health` — you should
@@ -121,8 +122,7 @@ Open **http://localhost:5173** in your browser.
 1. Start the backend (`uvicorn app:app --reload --port 8000`).
 2. Start the frontend (`npm run dev`).
 3. Open `http://localhost:5173`.
-4. Paste a YouTube URL (or switch to "Upload file" and choose a local
-   audio/video file).
+4. Click "Upload file" and choose a local audio/video file.
 5. Select English or Hinglish.
 6. Click **Analyze Video**.
 7. Watch the processing screen cycle through stages (this can take a few
@@ -138,8 +138,8 @@ Open **http://localhost:5173** in your browser.
 12. Ask a second, different question and confirm the answer still reflects
     the same video's content (proving the same `session_id`/RAG session is
     reused, not rebuilt).
-13. Click **Home** in the header, then try an intentionally invalid URL (e.g.
-    `not-a-url`) to confirm the friendly client-side and server-side error
+13. Click **Home** in the header, then try uploading an unsupported file
+    type to confirm the friendly client-side and server-side error
     messages appear instead of a raw stack trace.
 
 ## Deploying to Render

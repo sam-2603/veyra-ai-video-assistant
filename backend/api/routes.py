@@ -10,7 +10,6 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from main import run_pipeline
 from core.rag_engine import ask_question
 from api.schemas import (
-    ProcessRequest,
     ProcessResponse,
     ChatRequest,
     ChatResponse,
@@ -49,30 +48,30 @@ def health():
     return HealthResponse(status="ok")
 
 
-@router.post("/process", response_model=ProcessResponse)
-def process_video(payload: ProcessRequest):
-    source = payload.source.strip()
+# @router.post("/process", response_model=ProcessResponse)
+# def process_video(payload: ProcessRequest):
+#     source = payload.source.strip()
 
-    if not (source.startswith("http://") or source.startswith("https://")):
-        raise HTTPException(
-            status_code=400,
-            detail="Please provide a valid YouTube URL, or use file upload for local files.",
-        )
+#     if not (source.startswith("http://") or source.startswith("https://")):
+#         raise HTTPException(
+#             status_code=400,
+#             detail="Please provide a valid YouTube URL, or use file upload for local files.",
+#         )
 
-    session_id = create_session_id()
+#     session_id = create_session_id()
 
-    try:
-        result = run_pipeline(source, payload.language, session_id=session_id)
-    except Exception:
-        # Full detail is logged server-side only; the client gets a safe message.
-        logger.error("Video processing failed for source=%s\n%s", source, traceback.format_exc())
-        raise HTTPException(
-            status_code=502,
-            detail="Video processing failed. Please check the URL and try again.",
-        )
+#     try:
+#         result = run_pipeline(source, payload.language, session_id=session_id)
+#     except Exception:
+#         # Full detail is logged server-side only; the client gets a safe message.
+#         logger.error("Video processing failed for source=%s\n%s", source, traceback.format_exc())
+#         raise HTTPException(
+#             status_code=502,
+#             detail="Video processing failed. Please check the URL and try again.",
+#         )
 
-    save_session(session_id, result["rag_chain"], title=result.get("title", ""))
-    return _to_process_response(session_id, result)
+#     save_session(session_id, result["rag_chain"], title=result.get("title", ""))
+#     return _to_process_response(session_id, result)
 
 
 @router.post("/process-upload", response_model=ProcessResponse)

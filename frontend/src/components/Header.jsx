@@ -112,10 +112,10 @@ export default function Header({ onHome, hasResult }) {
           >
             <h3 style={{ marginBottom: 12 }}>About</h3>
             <p style={{ marginBottom: 16 }}>
-              AI Video Assistant turns a YouTube video or an uploaded
-              recording into a transcript, summary, action items, decisions,
-              and open questions — then lets you ask it questions directly
-              using retrieval-augmented generation over the transcript.
+              AI Video Assistant turns an uploaded video or audio recording
+              into a transcript, summary, action items, decisions, and open
+              questions — then lets you ask it questions directly using
+              retrieval-augmented generation over the transcript.
             </p>
             <button className="btn-primary" onClick={() => setAboutOpen(false)}>
               Close

@@ -7,8 +7,8 @@ export default function Home({ onSubmit, loading, error }) {
       <section style={styles.hero}>
         <h1 style={styles.h1}>Turn videos into knowledge.</h1>
         <p style={styles.sub}>
-          Drop in a YouTube link or upload a recording. Get a transcript,
-          summary, action items, decisions, and open questions — then ask
+          Drop in a video or audio recording. Get a transcript, summary,
+          action items, decisions, and open questions — then ask
           your video anything.
         </p>
       </section>

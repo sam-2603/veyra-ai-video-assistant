@@ -2,8 +2,7 @@
 FROM python:3.11-slim
 
 # System dependencies
-# FFmpeg is required by yt-dlp and pydub.
-# Deno is required by modern yt-dlp for YouTube JavaScript challenges.
+# FFmpeg is required for audio/video processing with pydub.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     git \
@@ -12,11 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Deno
-RUN curl -fsSL https://deno.land/install.sh | sh
+# # Install Deno
+# RUN curl -fsSL https://deno.land/install.sh | sh
 
-# Make Deno available system-wide
-ENV PATH="/root/.deno/bin:${PATH}"
+# # Make Deno available system-wide
+# ENV PATH="/root/.deno/bin:${PATH}"
 
 WORKDIR /app
 

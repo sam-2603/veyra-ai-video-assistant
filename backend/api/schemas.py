@@ -1,12 +1,12 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Literal
 
 Language = Literal["english", "hinglish"]
 
 
-class ProcessRequest(BaseModel):
-    source: str = Field(..., description="A YouTube URL to process.")
-    language: Language = "english"
+# class ProcessRequest(BaseModel):
+#     source: str = Field(..., description="A YouTube URL to process.")
+#     language: Language = "english"
 
 
 class ProcessResponse(BaseModel):
