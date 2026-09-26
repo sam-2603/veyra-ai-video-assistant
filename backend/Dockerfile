@@ -3,13 +3,14 @@ FROM python:3.11-slim
 
 # System dependencies
 # FFmpeg is required for audio/video processing.
-# EGL/OpenGL/GLib libraries are required by MediaPipe.
+# EGL/OpenGL/GLES/GLib libraries are required by MediaPipe.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     git \
     ca-certificates \
     libegl1 \
     libgl1 \
+    libgles2 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
