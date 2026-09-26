@@ -1,20 +1,28 @@
 import os
 import json
 import hashlib
+import re
 
-from openai import OpenAI
 from dotenv import load_dotenv
+from langchain_groq import ChatGroq
+
 
 load_dotenv()
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-if not OPENAI_API_KEY:
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+if not GROQ_API_KEY:
     raise RuntimeError(
-        "OPENAI_API_KEY is not set in environment / .env"
+        "GROQ_API_KEY is not set in environment / .env"
     )
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+
+llm = ChatGroq(
+    model="openai/gpt-oss-120b",
+    temperature=0.2,
+    groq_api_key=GROQ_API_KEY,
+)
 
 
 def _get_cache_path(transcript: str) -> str:
@@ -28,7 +36,10 @@ def _get_cache_path(transcript: str) -> str:
         "cache"
     )
 
-    os.makedirs(cache_dir, exist_ok=True)
+    os.makedirs(
+        cache_dir,
+        exist_ok=True
+    )
 
     return os.path.join(
         cache_dir,
@@ -71,9 +82,14 @@ def _load_cache(transcript: str):
         return None
 
 
-def _save_cache(transcript: str, data: dict):
+def _save_cache(
+    transcript: str,
+    data: dict
+):
 
-    cache_path = _get_cache_path(transcript)
+    cache_path = _get_cache_path(
+        transcript
+    )
 
     with open(
         cache_path,
@@ -89,54 +105,127 @@ def _save_cache(transcript: str, data: dict):
         )
 
     print(
-        f"Text analysis cached at: {cache_path}"
+        f"Text analysis cached at: "
+        f"{cache_path}"
     )
 
 
-def _generate_analysis(transcript: str) -> dict:
+def _parse_response(text: str) -> dict:
 
-    print("Generating title and summary...")
+    text = text.strip()
 
-    title_response = client.responses.create(
-        model="gpt-4.1-nano",
-        input=(
-            "Generate a short, clear title for this transcript. "
-            "Return only the title.\n\n"
-            f"{transcript}"
+    # Remove markdown code fences if the model adds them.
+    text = re.sub(
+        r"^```(?:json)?\s*",
+        "",
+        text,
+        flags=re.IGNORECASE
+    )
+
+    text = re.sub(
+        r"\s*```$",
+        "",
+        text
+    )
+
+    try:
+
+        data = json.loads(text)
+
+        return {
+            "title": str(
+                data.get("title", "")
+            ).strip(),
+
+            "summary": str(
+                data.get("summary", "")
+            ).strip(),
+        }
+
+    except json.JSONDecodeError:
+
+        # Fallback if the model does not return valid JSON.
+        title_match = re.search(
+            r'"title"\s*:\s*"([^"]*)"',
+            text,
+            re.IGNORECASE
         )
-    )
 
-    title = title_response.output_text.strip()
-
-    summary_response = client.responses.create(
-        model="gpt-4.1-nano",
-        input=(
-            "Summarize the following transcript clearly and concisely. "
-            "Focus only on the important information.\n\n"
-            f"{transcript}"
+        summary_match = re.search(
+            r'"summary"\s*:\s*"([\s\S]*)"',
+            text,
+            re.IGNORECASE
         )
+
+        return {
+            "title": (
+                title_match.group(1).strip()
+                if title_match
+                else "Video Analysis"
+            ),
+            "summary": (
+                summary_match.group(1).strip()
+                if summary_match
+                else text
+            ),
+        }
+
+
+def _generate_analysis(
+    transcript: str
+) -> dict:
+
+    print(
+        "Generating title and summary with Groq..."
     )
 
-    summary = summary_response.output_text.strip()
+    prompt = f"""
+You are an expert video and meeting analyst.
 
-    data = {
-        "title": title,
-        "summary": summary
-    }
+Analyze the transcript below.
+
+Generate:
+1. A short, clear title.
+2. A concise summary containing only the important information.
+
+Return ONLY valid JSON in exactly this format:
+
+{{
+  "title": "Short title",
+  "summary": "Concise summary"
+}}
+
+Do not add markdown.
+Do not add explanations.
+
+Transcript:
+{transcript}
+"""
+
+    response = llm.invoke(prompt)
+
+    result = _parse_response(
+        response.content
+    )
 
     _save_cache(
         transcript,
-        data
+        result
     )
 
-    return data
+    return result
 
 
-def generate_title(transcript: str) -> str:
+def generate_title(
+    transcript: str
+) -> str:
 
-    cached = _load_cache(transcript)
+    cached = _load_cache(
+        transcript
+    )
 
     if cached and cached.get("title"):
+
         return cached["title"]
 
     return _generate_analysis(
@@ -144,11 +233,16 @@ def generate_title(transcript: str) -> str:
     )["title"]
 
 
-def summarize(transcript: str) -> str:
+def summarize(
+    transcript: str
+) -> str:
 
-    cached = _load_cache(transcript)
+    cached = _load_cache(
+        transcript
+    )
 
     if cached and cached.get("summary"):
+
         return cached["summary"]
 
     return _generate_analysis(
