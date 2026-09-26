@@ -51,7 +51,7 @@ def _get_cache_path(video_path: str) -> str:
 
 def analyze_mouth_movement(
     video_path: str,
-    sample_fps: int = 5
+    sample_fps: int = 1
 ) -> list:
     """
     Detect face landmarks and measure mouth movement over time.
@@ -178,7 +178,7 @@ def analyze_mouth_movement(
 
 def analyze_audio_activity(
     video_path: str,
-    sample_fps=5
+    sample_fps: int =1
 ):
     """
     Detect speech activity using WebRTC VAD.
@@ -335,7 +335,7 @@ def compare_audio_and_mouth(
 
 
 def estimate_sync_offset(
-    audio_data: list,
+    audio_data: list,   
     mouth_data: list,
     max_offset: float = 2.0
 ) -> dict:
