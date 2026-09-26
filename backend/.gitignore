@@ -2,7 +2,12 @@
 __pycache__/
 *.pyc
 .env
+
+cache/*
+!cache/.gitkeep
+
 downloads/*
 !downloads/.gitkeep
+
 vector_db/*
 !vector_db/.gitkeep

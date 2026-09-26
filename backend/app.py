@@ -1,17 +1,12 @@
 """
-FastAPI entrypoint. This is the ONLY new top-level backend file.
+Veyra FastAPI application entrypoint.
 
-It does not contain any AI/pipeline logic — it just wires up CORS and the
-api.routes router, which in turn calls the existing run_pipeline()/
-ask_question() from main.py / core.rag_engine.
-
-Run with:
-    uvicorn app:app --reload          (local dev, from inside backend/)
-    uvicorn app:app --host 0.0.0.0 --port $PORT   (production)
+This file only configures the FastAPI application,
+CORS, and API routes.
 """
 
-import os
 import logging
+import os
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -19,19 +14,36 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes import router as api_router
 
+
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO
+)
+
 
 app = FastAPI(
-    title="AI Video Assistant API",
-    description="API layer around the existing video/meeting RAG pipeline.",
+    title="Veyra API",
+    description=(
+        "API for Veyra's AI-powered audio, "
+        "video, visual, synchronization, "
+        "and RAG analysis pipeline."
+    ),
     version="1.0.0",
 )
 
 
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173")
-ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+_raw_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173"
+)
+
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in _raw_origins.split(",")
+    if origin.strip()
+]
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -41,9 +53,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 app.include_router(api_router)
 
 
 @app.get("/")
 def root():
-    return {"service": "AI Video Assistant API", "docs": "/docs"}
+    return {
+        "service": "Veyra API",
+        "docs": "/docs",
+    }

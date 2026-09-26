@@ -2,7 +2,6 @@ import { useRef, useState } from "react";
 
 export default function VideoInput({ onSubmit, disabled }) {
   const [file, setFile] = useState(null);
-  const [language, setLanguage] = useState("english");
   const [localError, setLocalError] = useState("");
 
   const fileInputRef = useRef(null);
@@ -22,7 +21,7 @@ export default function VideoInput({ onSubmit, disabled }) {
       return;
     }
 
-    onSubmit({ type: "upload", file, language });
+    onSubmit({ type: "upload", file });
   }
 
   return (
@@ -51,31 +50,15 @@ export default function VideoInput({ onSubmit, disabled }) {
         )}
       </button>
 
-      <div style={styles.langRow}>
-        <span style={styles.langLabel}>Language</span>
+      <p style={styles.limit}>
+        Maximum video length: 5 minutes
+      </p>
 
-        <div style={{ display: "flex", gap: 8 }}>
-          {[
-            { id: "english", label: "English" },
-            { id: "hinglish", label: "Hinglish" },
-          ].map((opt) => (
-            <button
-              type="button"
-              key={opt.id}
-              onClick={() => setLanguage(opt.id)}
-              disabled={disabled}
-              style={{
-                ...styles.langBtn,
-                ...(language === opt.id ? styles.langBtnActive : {}),
-              }}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {localError && <p style={styles.error}>{localError}</p>}
+      {localError && (
+        <p style={styles.error}>
+          {localError}
+        </p>
+      )}
 
       <button
         type="submit"
@@ -108,31 +91,11 @@ const styles = {
     textAlign: "center",
   },
 
-  langRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  langLabel: {
-    fontSize: 13,
+  limit: {
+    margin: "-6px 0 0",
     color: "var(--text-secondary)",
-  },
-
-  langBtn: {
-    padding: "7px 14px",
-    borderRadius: 999,
-    border: "1px solid var(--border)",
-    background: "transparent",
-    color: "var(--text-secondary)",
-    fontSize: 13,
-    fontWeight: 500,
-  },
-
-  langBtnActive: {
-    borderColor: "var(--accent-soft-border)",
-    background: "var(--accent-soft)",
-    color: "var(--accent-strong)",
+    fontSize: 12,
+    textAlign: "center",
   },
 
   error: {

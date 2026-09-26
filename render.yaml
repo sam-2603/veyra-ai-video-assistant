@@ -3,7 +3,7 @@ services:
   # BACKEND
   # ─────────────────────────────────────────────────────────────
   - type: web
-    name: ai-video-assistant-backend
+    name: veyra-backend
     runtime: docker
 
     dockerfilePath: ./backend/Dockerfile
@@ -13,24 +13,18 @@ services:
       - key: GROQ_API_KEY
         sync: false
 
-      - key: SARVAM_API_KEY
-        sync: false
-
       - key: OPENAI_API_KEY
         sync: false
 
-      - key: SARVAM_STT_MODEL
-        value: saaras:v3
-
       - key: ALLOWED_ORIGINS
-        value: https://ai-video-assistant-frontend.onrender.com
+        value: https://veyra-frontend.onrender.com
 
 
   # ─────────────────────────────────────────────────────────────
   # FRONTEND
   # ─────────────────────────────────────────────────────────────
   - type: web
-    name: ai-video-assistant-frontend
+    name: veyra-frontend
     runtime: static
 
     buildCommand: cd frontend && npm install && npm run build
@@ -38,4 +32,4 @@ services:
 
     envVars:
       - key: VITE_API_URL
-        value: https://ai-video-assistant-backend-8t3w.onrender.com
+        value: https://veyra-backend.onrender.com

@@ -1,44 +1,30 @@
-
 import os
-import requests
+import json
+import hashlib
+
+from dotenv import load_dotenv
 from openai import OpenAI
-from pydub import AudioSegment
 
-
-# ── OpenAI ────────────────────────────────────────────────────────────────────
+load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not OPENAI_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY is not set in environment / .env")
+    raise RuntimeError(
+        "OPENAI_API_KEY is not set in environment / .env"
+    )
 
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 OPENAI_STT_MODEL = "gpt-4o-mini-transcribe"
 
 
-# ── Sarvam ────────────────────────────────────────────────────────────────────
-
-SARVAM_PIECE_SECONDS = 25
-
-SARVAM_API_KEY = os.getenv("SARVAM_API_KEY")
-SARVAM_STT_TRANSLATE_URL = (
-    "https://api.sarvam.ai/speech-to-text-translate"
-)
-SARVAM_MODEL = os.getenv("SARVAM_STT_MODEL", "saaras:v3")
-
-
-# ── English: OpenAI ───────────────────────────────────────────────────────────
-
-def transcribe_chunk_whisper(chunk_path: str) -> str:
-    """
-    Transcribe one audio chunk using OpenAI's low-cost
-    transcription model.
-    """
+def transcribe_chunk(chunk_path: str) -> str:
 
     print(f"Transcribing with OpenAI: {chunk_path}")
 
     with open(chunk_path, "rb") as audio_file:
+
         result = openai_client.audio.transcriptions.create(
             model=OPENAI_STT_MODEL,
             file=audio_file
@@ -47,116 +33,127 @@ def transcribe_chunk_whisper(chunk_path: str) -> str:
     return result.text.strip()
 
 
-# ── Sarvam request ────────────────────────────────────────────────────────────
+def _get_cache_path(chunks: list) -> str:
 
-def _send_to_sarvam(piece_path: str) -> str:
+    hasher = hashlib.md5()
 
-    headers = {
-        "api-subscription-key": SARVAM_API_KEY
-    }
+    for chunk_path in chunks:
 
-    with open(piece_path, "rb") as f:
-        response = requests.post(
-            SARVAM_STT_TRANSLATE_URL,
-            headers=headers,
-            files={
-                "file": (
-                    os.path.basename(piece_path),
-                    f,
-                    "audio/wav"
-                )
-            },
-            data={
-                "model": SARVAM_MODEL,
-                "with_diarization": "false"
-            },
-            timeout=120
-        )
+        with open(chunk_path, "rb") as file:
 
-    if not response.ok:
-        print(f"❌ Sarvam error {response.status_code}: {response.text}")
-        response.raise_for_status()
+            while True:
 
-    return response.json().get("transcript", "").strip()
+                data = file.read(1024 * 1024)
 
+                if not data:
+                    break
 
-# ── Hinglish: Sarvam ──────────────────────────────────────────────────────────
+                hasher.update(data)
 
-def transcribe_chunk_sarvam(chunk_path: str) -> str:
+    cache_hash = hasher.hexdigest()[:12]
 
-    if not SARVAM_API_KEY:
-        raise RuntimeError(
-            "SARVAM_API_KEY is not set in environment / .env"
-        )
-
-    audio = AudioSegment.from_wav(chunk_path)
-    piece_ms = SARVAM_PIECE_SECONDS * 1000
-
-    transcripts = []
-
-    for i, start in enumerate(range(0, len(audio), piece_ms)):
-
-        piece = audio[start:start + piece_ms]
-        piece_path = f"{chunk_path}_sv_{i}.wav"
-
-        piece.export(piece_path, format="wav")
-
-        try:
-            print(f"  → Sarvam piece {i + 1} ...")
-            text = _send_to_sarvam(piece_path)
-
-            if text:
-                transcripts.append(text)
-
-        finally:
-            if os.path.exists(piece_path):
-                os.remove(piece_path)
-
-    return " ".join(transcripts)
-
-
-# ── Language router ───────────────────────────────────────────────────────────
-
-def transcribe_chunk(
-    chunk_path: str,
-    language: str = "english"
-) -> str:
-
-    if language.lower() == "hinglish":
-        return transcribe_chunk_sarvam(chunk_path)
-
-    return transcribe_chunk_whisper(chunk_path)
-
-
-# ── Full transcription ────────────────────────────────────────────────────────
-
-def transcribe_all(
-    chunks: list,
-    language: str = "english"
-) -> str:
-
-    engine = (
-        "Sarvam AI"
-        if language.lower() == "hinglish"
-        else "OpenAI"
+    cache_dir = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "cache"
     )
 
-    print(f"Using {engine} for transcription.")
+    os.makedirs(cache_dir, exist_ok=True)
+
+    return os.path.join(
+        cache_dir,
+        f"transcript_{cache_hash}.json"
+    )
+
+
+def transcribe_all(chunks: list) -> str:
+
+    if not chunks:
+        return ""
+
+    cache_path = _get_cache_path(chunks)
+
+    # --------------------------------------------------
+    # USE CACHE
+    # --------------------------------------------------
+
+    if os.path.exists(cache_path):
+
+        try:
+
+            with open(
+                cache_path,
+                "r",
+                encoding="utf-8"
+            ) as file:
+
+                cached_data = json.load(file)
+
+            transcript = cached_data.get("transcript")
+
+            if transcript:
+
+                print(
+                    "Using cached transcription."
+                )
+
+                return transcript
+
+        except (
+            json.JSONDecodeError,
+            KeyError,
+            TypeError
+        ):
+
+            print(
+                "Transcript cache is invalid. "
+                "Running transcription again."
+            )
+
+    # --------------------------------------------------
+    # TRANSCRIBE
+    # --------------------------------------------------
+
+    print(
+        "Using OpenAI for English transcription."
+    )
 
     transcripts = []
 
     for i, chunk in enumerate(chunks):
 
-        print(f"Transcribing chunk {i + 1}/{len(chunks)}...")
-
-        text = transcribe_chunk(
-            chunk,
-            language=language
+        print(
+            f"Transcribing chunk "
+            f"{i + 1}/{len(chunks)}..."
         )
+
+        text = transcribe_chunk(chunk)
 
         if text:
             transcripts.append(text)
 
-    print("Transcription complete.")
+    transcript = " ".join(transcripts)
 
-    return " ".join(transcripts)
+    # --------------------------------------------------
+    # SAVE CACHE
+    # --------------------------------------------------
+
+    with open(
+        cache_path,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        json.dump(
+            {
+                "transcript": transcript
+            },
+            file,
+            indent=2,
+            ensure_ascii=False
+        )
+
+    print(
+        f"Transcript cached at: {cache_path}"
+    )
+
+    return transcript

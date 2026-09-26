@@ -1,79 +1,156 @@
-from dotenv import load_dotenv
-load_dotenv()
-from langchain_groq import ChatGroq
-from rich import print
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.runnables import RunnablePassthrough,RunnableLambda
 import os
+import json
+import hashlib
 
-def get_llm():
-    return ChatGroq(model='openai/gpt-oss-120b',temperature=0.4,groq_api_key=os.getenv("GROQ_API_KEY"))
+from openai import OpenAI
+from dotenv import load_dotenv
 
-def split_transcript(transcript:str)->list:
-    splitter=RecursiveCharacterTextSplitter(
-        chunk_size=3000,
-        chunk_overlap=200
+load_dotenv()
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+if not OPENAI_API_KEY:
+    raise RuntimeError(
+        "OPENAI_API_KEY is not set in environment / .env"
     )
 
-    return splitter.split_text(transcript)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-def summarize(transcript:str)->str:
-    llm=get_llm()
 
-    map_prompt = ChatPromptTemplate.from_messages(
-        [
-        ("system", "Summarize this portion of a meeting transcript concisely."),
-        ("human", "{text}"),
-    ]
+def _get_cache_path(transcript: str) -> str:
+
+    transcript_hash = hashlib.md5(
+        transcript.encode("utf-8")
+    ).hexdigest()[:12]
+
+    cache_dir = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "cache"
     )
 
-    map_chain = map_prompt | llm | StrOutputParser()
+    os.makedirs(cache_dir, exist_ok=True)
 
-    chunks = split_transcript(transcript)
-
-    chunk_summaries = [map_chain.invoke({"text" : chunk}) for chunk in chunks]
-
-    combined = "\n\n".join(chunk_summaries)
-
-    combined_prompt = ChatPromptTemplate.from_messages(
-        [
-        (
-            "system",
-            "You are an expert meeting summarizer. Combine these partial summaries "
-            "into one final professional meeting summary in bullet points.",
-        ),
-        ("human", "{text}"),
-    ]
+    return os.path.join(
+        cache_dir,
+        f"text_analysis_{transcript_hash}.json"
     )
 
-    combined_chain = (
-        RunnablePassthrough() | RunnableLambda(lambda x:{"text":x}) | combined_prompt | llm | StrOutputParser()
+
+def _load_cache(transcript: str):
+
+    cache_path = _get_cache_path(transcript)
+
+    if not os.path.exists(cache_path):
+        return None
+
+    try:
+
+        with open(
+            cache_path,
+            "r",
+            encoding="utf-8"
+        ) as file:
+
+            data = json.load(file)
+
+        print(
+            "Using cached text analysis."
+        )
+
+        return data
+
+    except (
+        json.JSONDecodeError,
+        TypeError
+    ):
+
+        print(
+            "Text analysis cache is invalid."
+        )
+
+        return None
+
+
+def _save_cache(transcript: str, data: dict):
+
+    cache_path = _get_cache_path(transcript)
+
+    with open(
+        cache_path,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        json.dump(
+            data,
+            file,
+            indent=2,
+            ensure_ascii=False
+        )
+
+    print(
+        f"Text analysis cached at: {cache_path}"
     )
 
-    return combined_chain.invoke(combined)
 
-def generate_title(transcipt : str) -> str:
-    llm = get_llm()
+def _generate_analysis(transcript: str) -> dict:
 
-    
+    print("Generating title and summary...")
 
-    title_chain = (
-        RunnablePassthrough() | RunnableLambda(lambda x:{"text":x}) | 
-        ChatPromptTemplate.from_messages([
-             (
-                "system",
-                "Based on the meeting transcript, generate a short professional meeting title "
-                "(max 8 words). Only return the title, nothing else.",
-            ),
-            ("human", "{text}"),
-        ])
-        | llm
-        |StrOutputParser()
+    title_response = client.responses.create(
+        model="gpt-4.1-nano",
+        input=(
+            "Generate a short, clear title for this transcript. "
+            "Return only the title.\n\n"
+            f"{transcript}"
+        )
     )
 
-    return title_chain.invoke(transcipt[:2000])
-    
+    title = title_response.output_text.strip()
+
+    summary_response = client.responses.create(
+        model="gpt-4.1-nano",
+        input=(
+            "Summarize the following transcript clearly and concisely. "
+            "Focus only on the important information.\n\n"
+            f"{transcript}"
+        )
+    )
+
+    summary = summary_response.output_text.strip()
+
+    data = {
+        "title": title,
+        "summary": summary
+    }
+
+    _save_cache(
+        transcript,
+        data
+    )
+
+    return data
 
 
+def generate_title(transcript: str) -> str:
+
+    cached = _load_cache(transcript)
+
+    if cached and cached.get("title"):
+        return cached["title"]
+
+    return _generate_analysis(
+        transcript
+    )["title"]
+
+
+def summarize(transcript: str) -> str:
+
+    cached = _load_cache(transcript)
+
+    if cached and cached.get("summary"):
+        return cached["summary"]
+
+    return _generate_analysis(
+        transcript
+    )["summary"]

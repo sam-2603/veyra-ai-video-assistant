@@ -1,13 +1,6 @@
 from pydantic import BaseModel
 from typing import Literal
 
-Language = Literal["english", "hinglish"]
-
-
-# class ProcessRequest(BaseModel):
-#     source: str = Field(..., description="A YouTube URL to process.")
-#     language: Language = "english"
-
 
 class ProcessResponse(BaseModel):
     session_id: str
@@ -17,6 +10,7 @@ class ProcessResponse(BaseModel):
     action_items: str
     key_decisions: str
     open_questions: str
+    sync_analysis: dict
 
 
 class ChatRequest(BaseModel):
